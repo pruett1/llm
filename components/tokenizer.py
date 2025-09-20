@@ -1,4 +1,5 @@
 from collections import Counter
+import matplotlib.pyplot as plt
 
 class CharTokenizer():
     # initial single character tokens
@@ -138,10 +139,3 @@ class BlBPETokenizer():
         #convert tokens back to text
         byte_seq = b"".join([self.get_bytes(t) for t in tokens])
         return byte_seq.decode('utf-8', errors='replace')
-
-# tokenizer = BlBPETokenizer(vocab_size=290, special_tokens=["###OUTPUT###", "###END###"])
-# texts = ["test 123 ###OUTPUT### some out ###END###"]
-# tokenizer.train(texts)
-# tokens = tokenizer.encode("test hi ###OUTPUT### some output here 12:34 ###END### next thing now ###OUTPUT### another output ###END###")
-# print(tokens)
-# print(tokenizer.decode(tokens))
