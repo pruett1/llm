@@ -1,7 +1,7 @@
 import helpers.vocab_size_plot as vs_plot
 import helpers.text_handler as th
 from components.tokenizer import BlBPETokenizer
-from components.tokenizer_cpp import BlBPETokenizer as CPPBlBPETokenizer
+from components.tokenizer_cpp import BlBPETokenizer as CppBlBPETokenizer
 import time
 
 def main():
@@ -12,7 +12,7 @@ def main():
     print("Benchmarking Python vs C++ Tokenizer...")
     print("Start python tokenizer...")
     start_py = time.time()
-    tokenizer_py = BlBPETokenizer(vocab_size=1000, special_tokens=["<|OUTPUT|>"])
+    tokenizer_py = BlBPETokenizer(vocab_size=10000, special_tokens=["<|OUTPUT|>"])
     tokenizer_py.train(texts)
     tokenizer_py_encode = tokenizer_py.encode(texts[0])
     tokenizer_py_decode = tokenizer_py.decode(tokenizer_py_encode)
@@ -20,7 +20,7 @@ def main():
 
     print("Start C++ tokenizer...")
     start_cpp = time.time()
-    tokenizer_cpp = CPPBlBPETokenizer(vocab_size=1000, special_tokens=["<|OUTPUT|>"])
+    tokenizer_cpp = CppBlBPETokenizer(vocab_size=10000, special_tokens=["<|OUTPUT|>"])
     tokenizer_cpp.train(texts)
     tokenizer_cpp_encode = tokenizer_cpp.encode(texts[0])
     tokenizer_cpp_decode = tokenizer_cpp.decode(tokenizer_cpp_encode)
@@ -28,8 +28,9 @@ def main():
 
     print(f"Python Tokenizer Time: {end_py - start_py:.4f} seconds")
     print(f"C++ Tokenizer Time: {end_cpp - start_cpp:.4f} seconds")
-    print(tokenizer_py_encode == tokenizer_cpp_encode)
-    print(tokenizer_py_decode == tokenizer_cpp_decode)
+    py_time = end_py - start_py
+    cpp_time = end_cpp - start_cpp
+    print(f"C++ took {(cpp_time / py_time) * 100:.2f}% the time of Python")
 
 
 if __name__ == "__main__":
