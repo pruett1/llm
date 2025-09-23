@@ -1,5 +1,4 @@
 from collections import Counter
-import matplotlib.pyplot as plt
 
 class CharTokenizer():
     # initial single character tokens
