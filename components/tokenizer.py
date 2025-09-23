@@ -41,7 +41,7 @@ class BlBPETokenizer():
         self.merges = []
         pass
 
-    def get_stats(self, tokens: list[list[bytes]]) -> Counter:
+    def get_stats(self, tokens: list[list[int]]) -> Counter:
         #count freq of each adjacent byte pair in the tokenized data
         pairs = Counter()
         for seq in tokens:
@@ -51,7 +51,7 @@ class BlBPETokenizer():
 
         return pairs
     
-    def merge_vocab(self, pair: tuple[int, int], tokens: list[list[bytes]]) -> list[list[bytes]]:
+    def merge_vocab(self, pair: tuple[int, int], tokens: list[list[int]]) -> list[list[int]]:
         #apply merge to token sequences
         new_tokens = []
         new_id = self.vocab[pair]
