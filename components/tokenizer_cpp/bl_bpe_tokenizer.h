@@ -18,9 +18,29 @@ struct vector_hash {
     }
 };
 
+struct pair_hash {
+    std::size_t operator()(const std::pair<int, int>& v) const {
+        return std::hash<int>()(v.first) ^ (std::hash<int>()(v.second) << 1);
+    }
+};
+
+// trie node struct to speed up special token matching
+struct TrieNode {
+    std::unordered_map<int, TrieNode*> children;
+    int tokenId = -1;
+
+    ~TrieNode() {
+        for (auto &[_, child] : children) {
+            delete child;
+        }
+    }
+};
+
 class BlBPETokenizer {
     public:
         BlBPETokenizer(int vocabSize, const std::vector<std::string>& specialTokens);
+
+        ~BlBPETokenizer();
 
         void train(const std::vector<std::string>& texts);
 
@@ -33,15 +53,15 @@ class BlBPETokenizer {
         std::unordered_map<std::vector<int>, int, vector_hash> vocab;
         std::unordered_map<int, std::vector<int>> invVocab;
 
-        std::unordered_map<std::vector<int>, int, vector_hash> specialTokensMap;
+        TrieNode* specialTokenRoot;
         
         std::vector<std::vector<int>> merges;
 
-        std::map<std::pair<int, int>, int> getStats(const std::vector<std::vector<int>>& tokens) const;
+        std::pair<int, int> getStats(const std::vector<std::vector<int>>& tokens) const;
 
-        std::vector<std::vector<int>> mergeVocab(const std::pair<int, int>& pair, const std::vector<std::vector<int>>& tokens);
+        void mergeVocab(const std::pair<int, int>& pair, std::vector<std::vector<int>>& tokens);
 
         std::vector<std::vector<int>> corpusToTokens(const std::vector<std::string>& texts) const;
 
-        std::vector<uint8_t> getBytes(int token);
+        void getBytes(int token, std::vector<uint8_t>& outBytes);
 };
