@@ -1,4 +1,18 @@
-corpuses/
+#vs code/mac files
+.DS_Store
+.vscode/
+
+#python ext modules
+*.so
+*/*.so
+*.pyd
+*/*.pyd
+
+#python directories
+/build/
+*/build/
 */__pycache__/
 __pycache__/
-.DS_Store
+
+#project dir
+/corpuses/
