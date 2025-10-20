@@ -30,6 +30,7 @@ class StreamingAttention(nn.Module):
         B, L, _ = x.size()
         all_heads = []
 
+        # TODO: vectorize over heads
         for i in range(self.n_heads):
             q = self.q_proj[i](x)
             k = self.k_proj[i](x)
