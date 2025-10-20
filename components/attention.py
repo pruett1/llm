@@ -36,8 +36,8 @@ class StreamingAttention(nn.Module):
             v = self.v_proj[i](x)
 
             pos = torch.arange(self.cache_index, self.cache_index + L, device=x.device)
-            q = torch.stack([self.rope.rot(q[:, j, :], pos[j]) for j in range(L)], dim = 1)
-            k = torch.stack([self.rope.rot(k[:, j, :], pos[j]) for j in range(L)], dim = 1)
+            q = self.rope.rot(q, pos)
+            k = self.rope.rot(k, pos)
 
             if use_cache and self.cache_k is not None:
                 k = torch.cat([self.cache_k[i], k], dim = 1)
