@@ -5,7 +5,7 @@ from components.positional_embedding import RoPositionalEmbedding
 
 # modified self attention with rotary position embedding
 class StreamingAttention(nn.Module):
-    def __init__(self, d_model: int, max_seq_len: int, n_heads: int = 4, attn_dropout: float = 0.1, proj_dropout: float = 0.1):
+    def __init__(self, d_model: int, max_seq_len: int,  n_heads: int = 4, attn_dropout: float = 0.1, proj_dropout: float = 0.1):
         super().__init__()
         assert d_model % n_heads == 0, "d_model must be divisible by n_heads"
         self.d_model = d_model
@@ -25,6 +25,11 @@ class StreamingAttention(nn.Module):
         self.register_buffer("cache_k", None)
         self.register_buffer("cache_v", None)
         self.register_buffer("cache_index", torch.tensor(0, dtype=torch.long))
+
+    def reset_cache(self):
+        self.cache_k = None
+        self.cache_v = None
+        self.cache_index = torch.tensor(0, dtype=torch.long)
 
     def forward(self, x: torch.Tensor, use_cache: bool) -> torch.Tensor:
         B, L, _ = x.size()
