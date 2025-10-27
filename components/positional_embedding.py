@@ -9,6 +9,7 @@ class RoPositionalEmbedding(nn.Module):
         super().__init__()
         assert d_model % 2 == 0 # d_model must be even
         half_d = d_model // 2
+        self.max_seq_len = max_seq_len
 
         thetas = (10000 ** (torch.arange(0, half_d).float() / d_model))
         self.register_buffer("thetas", thetas)
