@@ -6,6 +6,8 @@ BlBPETokenizer::BlBPETokenizer(int vocabSize, const std::vector<std::string>& sp
     vocab.reserve(vocabSize);
     this->invVocab = {};
     invVocab.reserve(vocabSize);
+    this->specialTokenMap = {};
+    specialTokenMap.reserve(specialTokens.size());
     this->merges = {};
     merges.reserve(vocabSize-256-specialTokens.size()); //vocab_size - 256 bytes - #special tokens added
     this->specialTokenRoot = new TrieNode();
@@ -24,6 +26,7 @@ BlBPETokenizer::BlBPETokenizer(int vocabSize, const std::vector<std::string>& sp
         }
         vocab.emplace(tokenBytes, idx);
         invVocab.emplace(idx, tokenBytes);
+        specialTokenMap.emplace(specialTokens[i], idx);
         TrieNode* node = specialTokenRoot;
         for (int b : tokenBytes) {
             if (node->children.find(b) == node->children.end()) {
@@ -37,6 +40,10 @@ BlBPETokenizer::BlBPETokenizer(int vocabSize, const std::vector<std::string>& sp
 
 BlBPETokenizer::~BlBPETokenizer() {
     delete specialTokenRoot;
+}
+
+int BlBPETokenizer::getSpecialTokenId(std::string token) {
+    return specialTokenMap.at(token);
 }
 
 std::pair<int, int> BlBPETokenizer::getStats(const std::vector<std::vector<int>>& tokens) const {

@@ -42,6 +42,8 @@ class BlBPETokenizer {
 
         ~BlBPETokenizer();
 
+        int getSpecialTokenId(std::string token);
+
         void train(const std::vector<std::string>& texts);
 
         std::vector<int> encode(std::string text);
@@ -52,6 +54,7 @@ class BlBPETokenizer {
         int vocabSize;
         std::unordered_map<std::vector<int>, int, vector_hash> vocab;
         std::unordered_map<int, std::vector<int>> invVocab;
+        std::unordered_map<std::string, int> specialTokenMap;
 
         TrieNode* specialTokenRoot;
         
