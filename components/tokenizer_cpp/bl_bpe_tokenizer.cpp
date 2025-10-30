@@ -46,6 +46,10 @@ int BlBPETokenizer::getSpecialTokenId(std::string token) {
     return specialTokenMap.at(token);
 }
 
+int BlBPETokenizer::getVocabSize() {
+    return vocabSize;
+}
+
 std::pair<int, int> BlBPETokenizer::getStats(const std::vector<std::vector<int>>& tokens) const {
     std::unordered_map<std::pair<int, int>, int, pair_hash> pairs;
     std::pair<int, int> bestPair = {-1, -1};

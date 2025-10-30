@@ -10,5 +10,6 @@ PYBIND11_MODULE(tokenizer_cpp, m) {
         .def("train", &BlBPETokenizer::train, py::arg("texts"))
         .def("encode", &BlBPETokenizer::encode, py::arg("text"))
         .def("decode", &BlBPETokenizer::decode, py::arg("tokens"))
+        .def("get_vocab_size", &BlBPETokenizer::getVocabSize)
         .def("get_special_token_id", &BlBPETokenizer::getSpecialTokenId, py::arg("token"));
 }

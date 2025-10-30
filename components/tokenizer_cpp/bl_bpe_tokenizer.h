@@ -44,6 +44,8 @@ class BlBPETokenizer {
 
         int getSpecialTokenId(std::string token);
 
+        int getVocabSize();
+
         void train(const std::vector<std::string>& texts);
 
         std::vector<int> encode(std::string text);
