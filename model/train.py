@@ -23,7 +23,7 @@ def masked_lm_loss(logits: torch.Tensor, labels: torch.Tensor, output_token_id: 
     return masked_loss.sum() / mask.sum()
 
 def collate_fn_factory(tokenizer: BlBPETokenizer):
-    def collate_fn(batch, tokenizer: BlBPETokenizer):
+    def collate_fn(batch):
         return pad_sequence(batch, batch_first=True, padding_value = tokenizer.get_special_token_id("<|PAD|>"))
     return collate_fn
 
@@ -43,7 +43,7 @@ def train_model(model: Transformer, token_data: list[int], tokenizer: BlBPEToken
 
     dataloader = DataLoader(token_data, batch_size=batch_size, shuffle=True, collate_fn=collate_fn_factory(tokenizer))
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
-    scheduler = WarmupLR(optimizer, warmup_steps=10, d_model=model.token_embedding.weight.size(1))
+    scheduler = WarmupLR(optimizer, warmup_steps=1, d_model=model.token_embedding.weight.size(1))
 
     for epoch in range(epochs):
         model.train()
@@ -63,7 +63,7 @@ def train_model(model: Transformer, token_data: list[int], tokenizer: BlBPEToken
             total_loss += loss.item()
         
         avg_loss = total_loss / len(dataloader)
-        if (epoch) % 10 == 0:
+        if (epoch) % 1 == 0:
             print(f"Epoch {epoch + 1}/{epochs}, Loss: {avg_loss:.4f}")
         
     
