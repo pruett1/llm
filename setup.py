@@ -8,7 +8,8 @@ ext_modules = [
         sources = ["components/tokenizer_cpp/bl_bpe_tokenizer.cpp", "components/tokenizer_cpp/bindings.cpp"],
         include_dirs = [pybind11.get_include()],
         language = "c++",
-        extra_compile_args=["-O3", "-std=c++20"]
+        extra_compile_args=["-O3", "-std=c++20", "-Xpreprocessor", "-fopenmp"],
+        extra_link_args=["-lomp"]
     ),
 ]
 
