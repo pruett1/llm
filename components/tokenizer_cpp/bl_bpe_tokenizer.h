@@ -4,6 +4,7 @@
 #include <sstream>
 #include <map>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 
 // hash function for vector<int> to be used in unordered_map
@@ -57,6 +58,7 @@ class BlBPETokenizer {
         std::unordered_map<std::vector<int>, int, vector_hash> vocab;
         std::unordered_map<int, std::vector<int>> invVocab;
         std::unordered_map<std::string, int> specialTokenMap;
+        std::unordered_set<int> specialTokenIds;
 
         TrieNode* specialTokenRoot;
         

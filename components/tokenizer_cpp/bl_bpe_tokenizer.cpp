@@ -8,6 +8,8 @@ BlBPETokenizer::BlBPETokenizer(int vocabSize, const std::vector<std::string>& sp
     invVocab.reserve(vocabSize);
     this->specialTokenMap = {};
     specialTokenMap.reserve(specialTokens.size());
+    this->specialTokenIds = {};
+    specialTokenIds.reserve(specialTokens.size());
     this->merges = {};
     merges.reserve(vocabSize-256-specialTokens.size()); //vocab_size - 256 bytes - #special tokens added
     this->specialTokenRoot = new TrieNode();
@@ -27,6 +29,7 @@ BlBPETokenizer::BlBPETokenizer(int vocabSize, const std::vector<std::string>& sp
         vocab.emplace(tokenBytes, idx);
         invVocab.emplace(idx, tokenBytes);
         specialTokenMap.emplace(specialTokens[i], idx);
+        specialTokenIds.insert(idx);
         TrieNode* node = specialTokenRoot;
         for (int b : tokenBytes) {
             if (node->children.find(b) == node->children.end()) {
@@ -58,6 +61,11 @@ std::pair<int, int> BlBPETokenizer::getStats(const std::vector<std::vector<int>>
     //count freq of each adjacent byte pair in the tokenized data
     for (const std::vector<int>& seq: tokens) {
         for (size_t i = 0; i < seq.size() - 1; i++) {
+            // skip special token pairs
+            if (specialTokenIds.count(seq[i]) || specialTokenIds.count(seq[i+1])) {
+                continue;
+            }
+
             std::pair<int, int> pairKey(seq[i], seq[i+1]);
             int freq = ++pairs[pairKey];
             if (freq > maxFreq) {
