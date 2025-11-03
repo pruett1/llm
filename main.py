@@ -27,10 +27,10 @@ def main():
                         n_layers = 6,
                         ff_mult = 4)
 
-    train_model(model, token_data, tokenizer, epochs=10000, lr=1e-4, batch_size=32)
+    train_model(model, token_data, tokenizer, epochs=10000, lr=1e-4, batch_size=32, resume=True)
 
     text = "<|DESC|>Write a function that returns the sum of two numbers.<|EXAMPLES|>Input: 2, 3 Output: 5 Input: -1, 1 Output: 0<|CONSTRAINTS|>The function should handle integer inputs.<|OUTPUT|>"
-    input_ids = torch.tensor([tokenizer.encode(text)], dtype=torch.long)
+    input_ids = torch.tensor([tokenizer.encode(text)], dtype=torch.long, device=device)
     generated_ids = model.generate(input_ids, max_length=50)
     generated_text = tokenizer.decode(generated_ids[0].tolist())
     print(generated_text)
