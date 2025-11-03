@@ -1,37 +1,36 @@
-import helpers.vocab_size_plot as vs_plot
-import helpers.text_handler as th
-from components.tokenizer import BlBPETokenizer
-from components.tokenizer_cpp import BlBPETokenizer as CppBlBPETokenizer
-import time
+from helpers.text_handler import jsonl_to_texts
+from components.tokenizer_cpp import BlBPETokenizer
+
+from model.transformer import Transformer
+from model.train import train_model
+
+import torch
 
 def main():
-    # vs_plot.tokenizer_vocab_size_test('corpuses/easy_array_python_0.6_8_1755876977.jsonl', 
-    #                                   sizes=[1000, 2000, 3000, 4000, 5000, 5500, 6000, 6500, 7000, 7500, 8000, 8500, 9000, 10000, 10500, 11000, 11500, 12000, 12500, 13000, 13500, 14000, 14500, 15000, 15500, 16000, 16500, 17000, 17500, 18000, 18500, 19000, 19500, 20000])
-    texts = th.jsonl_to_texts('corpuses/easy_array_python_0.6_8_1755876977.jsonl')
+    texts = jsonl_to_texts('./corpuses/easy_array_python_0.6_8_1755876977.jsonl')
+    print("Loaded texts:", len(texts))
 
-    print("Benchmarking Python vs C++ Tokenizer...")
-    print("Start python tokenizer...")
-    start_py = time.time()
-    tokenizer_py = BlBPETokenizer(vocab_size=10000, special_tokens=["<|OUTPUT|>"])
-    tokenizer_py.train(texts)
-    tokenizer_py_encode = tokenizer_py.encode(texts[0])
-    tokenizer_py_decode = tokenizer_py.decode(tokenizer_py_encode)
-    end_py = time.time()
+    tokenizer = BlBPETokenizer(vocab_size=10000, special_tokens=["<|OUTPUT|>", "<|PAD|>", "<|DESC|>", "<|EXAMPLES|>", "<|CONSTRAINTS|>"])
+    print("Training tokenizer with vocab size:", tokenizer.get_vocab_size())
+    tokenizer.train(texts)
+    print("Tokenizer trained.")
 
-    print("Start C++ tokenizer...")
-    start_cpp = time.time()
-    tokenizer_cpp = CppBlBPETokenizer(vocab_size=10000, special_tokens=["<|OUTPUT|>"])
-    tokenizer_cpp.train(texts)
-    tokenizer_cpp_encode = tokenizer_cpp.encode(texts[0])
-    tokenizer_cpp_decode = tokenizer_cpp.decode(tokenizer_cpp_encode)
-    end_cpp = time.time()
+    token_data = [tokenizer.encode(text) for text in texts]
 
-    print(f"Python Tokenizer Time: {end_py - start_py:.4f} seconds")
-    print(f"C++ Tokenizer Time: {end_cpp - start_cpp:.4f} seconds")
-    py_time = end_py - start_py
-    cpp_time = end_cpp - start_cpp
-    print(f"C++ took {(cpp_time / py_time) * 100:.2f}% the time of Python")
+    model = Transformer(vocab_size = tokenizer.get_vocab_size(),
+                        d_model = 512,
+                        max_seq_len = 128,
+                        n_heads = 8,
+                        n_layers = 6,
+                        ff_mult = 4)
 
+    train_model(model, token_data, tokenizer, epochs=5, lr=1e-4, batch_size=32)
+
+    text = "<|DESC|>Write a function that returns the sum of two numbers.<|EXAMPLES|>Input: 2, 3 Output: 5 Input: -1, 1 Output: 0<|CONSTRAINTS|>The function should handle integer inputs.<|OUTPUT|>"
+    input_ids = torch.tensor([tokenizer.encode(text)], dtype=torch.long)
+    generated_ids = model.generate(input_ids, max_length=50)
+    generated_text = tokenizer.decode(generated_ids[0].tolist())
+    print(generated_text)
 
 if __name__ == "__main__":
     main()
