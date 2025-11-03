@@ -72,7 +72,7 @@ class Transformer(nn.Module):
             }
 
         torch.save(checkpoint, path)
-        print(f"saved model checkpoint to {path}")
+        # print(f"saved model checkpoint to {path}")
     
     @classmethod
     def load(cls, path: str, device: torch.device, optimizer = None, scheduler = None):
@@ -95,9 +95,9 @@ class Transformer(nn.Module):
 
         if 'rng_state' in checkpoint:
             rng_state = checkpoint['rng_state']
-            torch.set_rng_state(rng_state['torch'])
+            torch.set_rng_state(rng_state['torch'].cpu())
             if torch.backends.mps.is_available() and rng_state['mps'] is not None:
-                torch.mps.set_rng_state(rng_state['mps'])
+                torch.mps.set_rng_state(rng_state['mps'].cpu())
             random.setstate(rng_state['python'])
 
         return model, starting_epoch
