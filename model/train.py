@@ -95,7 +95,7 @@ class WarmupLR(torch.optim.lr_scheduler._LRScheduler):
         return [lr for _ in self.optimizer.param_groups]
 
 def train_model(model: Transformer, token_data: list[int], tokenizer: BlBPETokenizer, epochs: int = 10000, lr: float = 1e-4, batch_size: int = 32, seq_len: int = 128):
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = torch.device('mps' if torch.mps.is_available() else 'cpu')
     print(f"Training on device: {device}")
     model.to(device)
 
@@ -119,6 +119,8 @@ def train_model(model: Transformer, token_data: list[int], tokenizer: BlBPEToken
             optimizer.zero_grad()
             logits = model.forward(inputs, use_cache=False)
 
+            logits.to(device)
+            labels = labels.to(device)
             loss = masked_lm_loss(logits, labels, tokenizer.get_special_token_id("<|OUTPUT|>"), tokenizer.get_special_token_id("<|PAD|>"))
             loss.backward()
 
@@ -129,6 +131,6 @@ def train_model(model: Transformer, token_data: list[int], tokenizer: BlBPEToken
         avg_loss = total_loss / len(dataloader)
         end = time.time()
         if (epoch) % 100 == 0:
-            print(f"Epoch {epoch + 1}/{epochs}, Loss: {avg_loss:.4f}, Time: {end - start:.2f}s")
+            tqdm.write(f"Epoch {epoch + 1}/{epochs}, Loss: {avg_loss:.4f}, Time: {end - start:.2f}s")
         
     
