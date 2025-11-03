@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
+
 import os
+import random
 
 from components.token_embedding import TokenEmbedding
 from components.decoder_block import DecoderBlock
@@ -41,7 +43,7 @@ class Transformer(nn.Module):
         
         return input_ids
     
-    def save(self, path: str):
+    def save(self, path: str, optimizer= None, scheduler = None, epoch: int = None, rng_state: bool = False):
         os.makedirs(os.path.dirname(path), exist_ok=True)
         checkpoint = {
             'model_state_dict': self.state_dict(),
@@ -55,15 +57,47 @@ class Transformer(nn.Module):
                 'dropout': self.layers[0].dropout.p
             }
         }
+
+        if optimizer is not None:
+            checkpoint['optimizer_state_dict'] = optimizer.state_dict()
+        if scheduler is not None:
+            checkpoint['scheduler_state_dict'] = scheduler.state_dict()
+        if epoch is not None:
+            checkpoint['epoch'] = epoch
+        if rng_state:
+            checkpoint['rng_state'] = {
+                'torch': torch.get_rng_state(),
+                'mps': torch.mps.get_rng_state() if torch.backends.mps.is_available() else None,
+                'python': random.getstate()
+            }
+
         torch.save(checkpoint, path)
         print(f"saved model checkpoint to {path}")
     
     @classmethod
-    def load(cls, path: str, device: torch.device):
+    def load(cls, path: str, device: torch.device, optimizer = None, scheduler = None):
         checkpoint = torch.load(path, map_location=device)
         config = checkpoint['config']
         model = cls(**config)
         model.load_state_dict(checkpoint['model_state_dict'])
         model.to(device)
         print(f"loaded model checkpoint from {path}")
-        return model
+
+        #try to load optimizer and scheduler states if provided
+        if optimizer is not None and 'optimizer_state_dict' in checkpoint:
+            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        if scheduler is not None and 'scheduler_state_dict' in checkpoint:
+            scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+        
+        starting_epoch = 0
+        if 'epoch' in checkpoint:
+            starting_epoch = checkpoint['epoch']
+
+        if 'rng_state' in checkpoint:
+            rng_state = checkpoint['rng_state']
+            torch.set_rng_state(rng_state['torch'])
+            if torch.backends.mps.is_available() and rng_state['mps'] is not None:
+                torch.mps.set_rng_state(rng_state['mps'])
+            random.setstate(rng_state['python'])
+
+        return model, starting_epoch
