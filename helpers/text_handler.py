@@ -5,16 +5,18 @@ def jsonl_to_texts(filepath: str) -> list[str]:
     with open(filepath, 'r', encoding='utf-8') as f:
         for line in f:
             obj = json.loads(line)
+            line = ""
             for key, val in obj.items():
                 match key:
                     case 'desc':
-                        result.append(f"<|DESC|>{val}")
+                        line += f"<|DESC|>{val}"
                     case 'examples':
-                        result.append(f"<|EXAMPLES|>{val}")
+                        line += f"<|EXAMPLES|>{val}"
                     case 'constraints':
-                        result.append(f"<|CONSTRAINTS|>{val}")
+                        line += f"<|CONSTRAINTS|>{val}"
                     case 'solution':
-                        result.append(f"<|OUTPUT|>{val}")
+                        line += f"<|OUTPUT|>{val}"
+            result.append(line)
     return result
 
 # [print(text) for text in jsonl_to_texts('./corpuses/easy_array_python_0.6_8_1755876977.jsonl')]
