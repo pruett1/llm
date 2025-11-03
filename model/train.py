@@ -7,6 +7,7 @@ from model.transformer import Transformer
 
 import time
 import random
+import os
 
 from tqdm import tqdm
 
@@ -94,7 +95,7 @@ class WarmupLR(torch.optim.lr_scheduler._LRScheduler):
         lr = (self.d_model ** -0.5) * min((self._step_count ** -0.5), (self._step_count * (self.warmup_steps ** -1.5)))
         return [lr for _ in self.optimizer.param_groups]
 
-def train_model(model: Transformer, token_data: list[int], tokenizer: BlBPETokenizer, epochs: int = 10000, lr: float = 1e-4, batch_size: int = 32, seq_len: int = 128):
+def train_model(model: Transformer, token_data: list[int], tokenizer: BlBPETokenizer, epochs: int = 10000, lr: float = 1e-4, batch_size: int = 32, seq_len: int = 128, resume: bool = False):
     device = torch.device('mps' if torch.mps.is_available() else 'cpu')
     print(f"Training on device: {device}")
     model.to(device)
@@ -105,32 +106,44 @@ def train_model(model: Transformer, token_data: list[int], tokenizer: BlBPEToken
 
     dataloader = DataLoader(token_data, batch_size=batch_size, shuffle=True, collate_fn=collate_fn_factory(tokenizer, seq_len, epochs, get_current_epoch))
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
-    scheduler = WarmupLR(optimizer, warmup_steps=1000, d_model=model.token_embedding.weight.size(1))
+    scheduler = WarmupLR(optimizer, warmup_steps=4000, d_model=model.token_embedding.weight.size(1))
+
+    start_epoch = 0
+    if resume and os.path.exists('checkpoints/train_interrupt.pt'):
+        model, start_epoch = Transformer.load('checkpoints/train_interrupt.pt', device, optimizer=optimizer, scheduler=scheduler)
+        print(f"Resuming training from epoch {start_epoch}")
+    current_epoch = start_epoch
 
     model.train()
-    for epoch in tqdm(range(epochs), desc="Training Epochs: ", leave=False):
-        start = time.time()
-        total_loss = 0.0
-        current_epoch = epoch
+    try:
+        for epoch in tqdm(range(start_epoch, epochs), desc="Training Epochs: ", leave=False):
+            start = time.time()
+            total_loss = 0.0
+            current_epoch = epoch
 
-        for batch in dataloader:
-            inputs, labels = batch
+            for batch in dataloader:
+                inputs, labels = batch
 
-            optimizer.zero_grad()
-            logits = model.forward(inputs, use_cache=False)
+                optimizer.zero_grad()
+                logits = model.forward(inputs, use_cache=False)
 
-            logits.to(device)
-            labels = labels.to(device)
-            loss = masked_lm_loss(logits, labels, tokenizer.get_special_token_id("<|OUTPUT|>"), tokenizer.get_special_token_id("<|PAD|>"))
-            loss.backward()
+                logits.to(device)
+                labels = labels.to(device)
+                loss = masked_lm_loss(logits, labels, tokenizer.get_special_token_id("<|OUTPUT|>"), tokenizer.get_special_token_id("<|PAD|>"))
+                loss.backward()
 
-            optimizer.step()
-            scheduler.step()
-            total_loss += loss.item()
-        
-        avg_loss = total_loss / len(dataloader)
-        end = time.time()
-        if (epoch) % 100 == 0:
-            tqdm.write(f"Epoch {epoch + 1}/{epochs}, Loss: {avg_loss:.4f}, Time: {end - start:.2f}s")
-        
-    
+                optimizer.step()
+                scheduler.step()
+                total_loss += loss.item()
+            
+            avg_loss = total_loss / len(dataloader)
+            end = time.time()
+            if (epoch + 1) % 100 == 0 or epoch == 0:
+                tqdm.write(f"Epoch {epoch + 1}/{epochs}, Loss: {avg_loss:.4f}, Time: {end - start:.2f}s")
+            
+            if epoch / epochs in [0.25, 0.5, 0.75, 1.0]:
+                model.save(f'checkpoints/model_epoch_{epoch + 1}.pt')
+    except KeyboardInterrupt:
+        print("Training interrupted. Saving model...")
+        model.save('checkpoints/train_interrupt.pt', optimizer=optimizer, scheduler=scheduler, epoch=epoch, rng_state=True)
+        print("Model saved. Exiting training loop.")
