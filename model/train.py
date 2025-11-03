@@ -1,11 +1,14 @@
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-from components.tokenizer_cpp import BlBPETokenizer
 
+from components.tokenizer_cpp import BlBPETokenizer
 from model.transformer import Transformer
+
 import time
 import random
+
+from tqdm import tqdm
 
 def masked_lm_loss(logits: torch.Tensor, labels: torch.Tensor, output_token_id: int, pad_id: int) -> torch.Tensor:
     mask = (labels == output_token_id).cumsum(dim=1) > 0
@@ -93,6 +96,7 @@ class WarmupLR(torch.optim.lr_scheduler._LRScheduler):
 
 def train_model(model: Transformer, token_data: list[int], tokenizer: BlBPETokenizer, epochs: int = 10000, lr: float = 1e-4, batch_size: int = 32, seq_len: int = 128):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print(f"Training on device: {device}")
     model.to(device)
 
     current_epoch = 0
@@ -101,10 +105,10 @@ def train_model(model: Transformer, token_data: list[int], tokenizer: BlBPEToken
 
     dataloader = DataLoader(token_data, batch_size=batch_size, shuffle=True, collate_fn=collate_fn_factory(tokenizer, seq_len, epochs, get_current_epoch))
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
-    scheduler = WarmupLR(optimizer, warmup_steps=1, d_model=model.token_embedding.weight.size(1))
+    scheduler = WarmupLR(optimizer, warmup_steps=1000, d_model=model.token_embedding.weight.size(1))
 
     model.train()
-    for epoch in range(epochs):
+    for epoch in tqdm(range(epochs), desc="Training Epochs: ", leave=False):
         start = time.time()
         total_loss = 0.0
         current_epoch = epoch
@@ -124,7 +128,7 @@ def train_model(model: Transformer, token_data: list[int], tokenizer: BlBPEToken
         
         avg_loss = total_loss / len(dataloader)
         end = time.time()
-        if (epoch) % 1 == 0:
+        if (epoch) % 100 == 0:
             print(f"Epoch {epoch + 1}/{epochs}, Loss: {avg_loss:.4f}, Time: {end - start:.2f}s")
         
     
