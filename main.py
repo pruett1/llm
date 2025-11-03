@@ -7,6 +7,9 @@ from model.train import train_model
 import torch
 
 def main():
+    device = torch.device("mps" if torch.mps.is_available() else "cpu")
+    print(f"Using device: {device}")
+
     texts = jsonl_to_texts('./corpuses/easy_array_python_0.6_8_1755876977.jsonl')
     print("Loaded texts:", len(texts))
 
@@ -24,7 +27,7 @@ def main():
                         n_layers = 6,
                         ff_mult = 4)
 
-    train_model(model, token_data, tokenizer, epochs=5, lr=1e-4, batch_size=32)
+    train_model(model, token_data, tokenizer, epochs=10000, lr=1e-4, batch_size=32)
 
     text = "<|DESC|>Write a function that returns the sum of two numbers.<|EXAMPLES|>Input: 2, 3 Output: 5 Input: -1, 1 Output: 0<|CONSTRAINTS|>The function should handle integer inputs.<|OUTPUT|>"
     input_ids = torch.tensor([tokenizer.encode(text)], dtype=torch.long)
