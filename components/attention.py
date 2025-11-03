@@ -22,9 +22,14 @@ class StreamingAttention(nn.Module):
         self.attn_dropout = nn.Dropout(attn_dropout)
         self.proj_dropout = nn.Dropout(proj_dropout)
 
-        self.register_buffer("cache_k", None)
-        self.register_buffer("cache_v", None)
-        self.register_buffer("cache_index", torch.tensor(0, dtype=torch.long))
+        # TODO: this can be uncommented when forward is vectorized over heads
+        # self.register_buffer("cache_k", None)
+        # self.register_buffer("cache_v", None)
+        # self.register_buffer("cache_index", torch.tensor(0, dtype=torch.long))
+
+        self.cache_k = None
+        self.cache_v = None
+        self.cache_index = 0
 
     def reset_cache(self):
         self.cache_k = None
@@ -45,7 +50,7 @@ class StreamingAttention(nn.Module):
             q = self.rope.rot(q, pos)
             k = self.rope.rot(k, pos)
 
-            if use_cache and self.cache_k is not None:
+            if use_cache and self.cache_k is not None and self.cache_k[i] is not None:
                 k = torch.cat([self.cache_k[i], k], dim = 1)
                 v = torch.cat([self.cache_v[i], v], dim = 1)
             
