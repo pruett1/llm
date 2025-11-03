@@ -1,17 +1,15 @@
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-from torch.nn.utils.rnn import pad_sequence
 from components.tokenizer_cpp import BlBPETokenizer
 
 from model.transformer import Transformer
+import time
+import random
 
-def masked_lm_loss(logits: torch.Tensor, labels: torch.Tensor, output_token_id: int) -> torch.Tensor:
-    mask = (labels == output_token_id).cumsumprod(dim=1) > 0
-    
-    logits = logits[:, :-1, :]
-    labels = labels[:, 1:]
-    mask = mask[:, 1:]
+def masked_lm_loss(logits: torch.Tensor, labels: torch.Tensor, output_token_id: int, pad_id: int) -> torch.Tensor:
+    mask = (labels == output_token_id).cumsum(dim=1) > 0
+    mask = mask & (labels != pad_id)
 
     logits = logits.reshape(-1, logits.size(-1))
     labels = labels.reshape(-1)
@@ -20,11 +18,67 @@ def masked_lm_loss(logits: torch.Tensor, labels: torch.Tensor, output_token_id: 
     token_loss = nn.functional.cross_entropy(logits, labels, reduction='none')
     masked_loss = token_loss * mask
 
-    return masked_loss.sum() / mask.sum()
+    return masked_loss.sum() / (mask.sum() + 1e-8) # Avoid division by zero, shouldnt happen but just in case
 
-def collate_fn_factory(tokenizer: BlBPETokenizer):
+def collate_fn_factory(tokenizer: BlBPETokenizer, seq_len: int, total_epochs: int, get_current_epoch):
+    pad_id = tokenizer.get_special_token_id("<|PAD|>")
+    output_id = tokenizer.get_special_token_id("<|OUTPUT|>")
+    desc_id = tokenizer.get_special_token_id("<|DESC|>")
+    ex_id = tokenizer.get_special_token_id("<|EXAMPLES|>")
+    # cons_id = tokenizer.get_special_token_id("<|CONSTRAINTS|>")
+
+    # Smoothly increase context length over training epochs, always include desc gradually add examples+constraints
+    # if context is too long, randomly select a subset that fits
     def collate_fn(batch):
-        return pad_sequence(batch, batch_first=True, padding_value = tokenizer.get_special_token_id("<|PAD|>"))
+        epoch = get_current_epoch()
+        progress = min(1.0, epoch / total_epochs)
+
+        inputs = []
+        labels = []
+
+        for tokens in batch:
+            t = torch.tensor(tokens, dtype=torch.long)
+
+            # Get special token idxs
+            d_start = (t == desc_id).nonzero(as_tuple=True)[0].item()
+            e_start = (t == ex_id).nonzero(as_tuple=True)[0].item()
+            # c_start = (t == cons_id).nonzero(as_tuple=True)[0]
+            o_start = (t == output_id).nonzero(as_tuple=True)[0].item()
+
+            # Split into desc, examples+constraints, output
+            desc = t[d_start:e_start]
+            examples_constraints = t[e_start:o_start]
+            output = t[o_start:]
+
+            #if output is too long, randomly select a subset that fits
+            #if too long take 75% of seq_len from output (allows some context)
+            if output.size(0) >= seq_len:
+                sub_size = int(seq_len * 0.75)
+                start_idx = random.randint(0, output.size(0) - sub_size)
+                output = output[start_idx:start_idx + sub_size]
+
+            context = torch.cat([desc, examples_constraints], dim=0)
+
+            allowed_context_len = int((desc.size(0)) + (context.size(0) - desc.size(0)) * progress) # Smooth ramping of context
+            max_context_len = min(int(seq_len - output.size(0)), allowed_context_len) # Max size of context we can fit, capped to allowed_context_len
+
+            # If context is too long, randomly select a subset that fits
+            if allowed_context_len > max_context_len:
+                start_idx = random.randint(0, allowed_context_len - max_context_len)
+                context = context[start_idx:start_idx + max_context_len]
+            else:
+                context = context[:allowed_context_len]
+
+            t = torch.cat([context, output], dim=0)
+            # Pad if needed
+            if t.size(0) < seq_len:
+                t = torch.cat([t, torch.full((seq_len - t.size(0),), pad_id, dtype=torch.long)], dim=0)
+            
+            inputs.append(t[:-1])
+            labels.append(t[1:])
+        
+        return torch.stack(inputs), torch.stack(labels)
+
     return collate_fn
 
 class WarmupLR(torch.optim.lr_scheduler._LRScheduler):
@@ -41,21 +95,27 @@ def train_model(model: Transformer, token_data: list[int], tokenizer: BlBPEToken
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model.to(device)
 
-    dataloader = DataLoader(token_data, batch_size=batch_size, shuffle=True, collate_fn=collate_fn_factory(tokenizer))
+    current_epoch = 0
+    def get_current_epoch():
+        return current_epoch
+
+    dataloader = DataLoader(token_data, batch_size=batch_size, shuffle=True, collate_fn=collate_fn_factory(tokenizer, seq_len, epochs, get_current_epoch))
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
     scheduler = WarmupLR(optimizer, warmup_steps=1, d_model=model.token_embedding.weight.size(1))
 
+    model.train()
     for epoch in range(epochs):
-        model.train()
+        start = time.time()
         total_loss = 0.0
+        current_epoch = epoch
 
         for batch in dataloader:
-            batch = batch[:, :seq_len].to(device)
+            inputs, labels = batch
 
             optimizer.zero_grad()
-            logits = model(batch, use_cache=False)
+            logits = model.forward(inputs, use_cache=False)
 
-            loss = masked_lm_loss(logits, batch, tokenizer.get_special_token_id("<|OUTPUT|>"))
+            loss = masked_lm_loss(logits, labels, tokenizer.get_special_token_id("<|OUTPUT|>"), tokenizer.get_special_token_id("<|PAD|>"))
             loss.backward()
 
             optimizer.step()
@@ -63,7 +123,8 @@ def train_model(model: Transformer, token_data: list[int], tokenizer: BlBPEToken
             total_loss += loss.item()
         
         avg_loss = total_loss / len(dataloader)
+        end = time.time()
         if (epoch) % 1 == 0:
-            print(f"Epoch {epoch + 1}/{epochs}, Loss: {avg_loss:.4f}")
+            print(f"Epoch {epoch + 1}/{epochs}, Loss: {avg_loss:.4f}, Time: {end - start:.2f}s")
         
     
