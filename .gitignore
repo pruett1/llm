@@ -10,7 +10,7 @@
 
 #python directories
 /build/
-*/build/
+**/build/
 */__pycache__/
 __pycache__/
 /env/
@@ -18,3 +18,4 @@ __pycache__/
 
 #project dir
 /corpuses/
+/checkpoints/

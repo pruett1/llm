@@ -1,6 +1,10 @@
 #include "bl_bpe_tokenizer.h"
 
 BlBPETokenizer::BlBPETokenizer(int vocabSize, const std::vector<std::string>& specialTokens) {
+    if (vocabSize < 256 + (int)specialTokens.size()) {
+        std::cout << "Warning: vocab size too small, adjusting to fit special tokens." << std::endl;
+        vocabSize = 256 + specialTokens.size();
+    }
     this->vocabSize = vocabSize;
     this->vocab = {};
     vocab.reserve(vocabSize);
@@ -51,6 +55,144 @@ int BlBPETokenizer::getSpecialTokenId(std::string token) {
 
 int BlBPETokenizer::getVocabSize() {
     return vocabSize;
+}
+
+void BlBPETokenizer::save(const std::string& path) const {
+    // save tokenizer state to binary file
+    std::ofstream out(path, std::ios::binary);
+    if (!out.is_open()) {
+        throw std::runtime_error("Failed to open file for writing: " + path);
+    }
+
+    //write target vocab size
+    out.write(reinterpret_cast<const char*>(&vocabSize), sizeof(uint32_t));
+    
+    // write current vocab size
+    uint32_t currVocabSize = vocab.size();
+    out.write(reinterpret_cast<const char*>(&currVocabSize), sizeof(uint32_t));
+
+    // write vocab entries
+    for (const auto& [tokenVec, id]: vocab) {
+        uint32_t vecSize = tokenVec.size();
+        out.write(reinterpret_cast<const char*>(&vecSize), sizeof(uint32_t));
+        out.write(reinterpret_cast<const char*>(tokenVec.data()), vecSize * sizeof(int));
+        out.write(reinterpret_cast<const char*>(&id), sizeof(int));
+    }
+
+    // write special tokens
+    uint32_t specialTokenSize = specialTokenMap.size();
+    out.write(reinterpret_cast<const char*>(&specialTokenSize), sizeof(uint32_t));
+
+    // write special token entries
+    for (const auto& [token, id] : specialTokenMap) {
+        uint32_t tokenLen = token.size();
+        out.write(reinterpret_cast<const char*>(&tokenLen), sizeof(uint32_t));
+        out.write(token.data(), tokenLen);
+        out.write(reinterpret_cast<const char*>(&id), sizeof(int));
+    }
+    
+    // write merges size
+    uint32_t mergesSize = merges.size();
+    out.write(reinterpret_cast<const char*>(&mergesSize), sizeof(uint32_t));
+
+    for (const auto& merge: merges) {
+        uint32_t mergeLen = merge.size();
+        out.write(reinterpret_cast<const char*>(&mergeLen), sizeof(uint32_t));
+        out.write(reinterpret_cast<const char*>(merge.data()), mergeLen * sizeof(int));
+    }
+
+    out.close();
+}
+
+std::shared_ptr<BlBPETokenizer> BlBPETokenizer::load(const std::string& path) {
+    std::ifstream in(path, std::ios::binary);
+    if (!in.is_open()) {
+        throw std::runtime_error("Failed to open file for reading: " + path);
+    }
+
+    auto tokenizer = std::make_shared<BlBPETokenizer>(256, std::vector<std::string>{});
+
+    // read target vocab size
+    uint32_t targetVocabSize;
+    in.read(reinterpret_cast<char*>(&targetVocabSize), sizeof(uint32_t));
+
+    // read current vocab size
+    uint32_t currVocabSize;
+    in.read(reinterpret_cast<char*>(&currVocabSize), sizeof(uint32_t));
+
+    // reserve and store vocab size
+    tokenizer->vocab.clear();
+    tokenizer->invVocab.clear();
+    tokenizer->vocab.reserve(currVocabSize);
+    tokenizer->invVocab.reserve(currVocabSize);
+    tokenizer->vocabSize = targetVocabSize;
+
+    // read vocab entries
+    for (uint32_t i = 0; i < currVocabSize; i++) {
+        uint32_t vecSize;
+        in.read(reinterpret_cast<char*>(&vecSize), sizeof(uint32_t));
+        std::vector<int> tokenVec(vecSize);
+        in.read(reinterpret_cast<char*>(tokenVec.data()), vecSize * sizeof(int));
+        int id;
+        in.read(reinterpret_cast<char*>(&id), sizeof(int));
+        tokenizer->vocab.emplace(tokenVec, id);
+        tokenizer->invVocab.emplace(id, tokenVec);
+    }
+
+    // read special token size
+    uint32_t specialTokenSize;
+    in.read(reinterpret_cast<char*>(&specialTokenSize), sizeof(uint32_t));
+    tokenizer->specialTokenMap.clear();
+    tokenizer->specialTokenIds.clear();
+    delete tokenizer->specialTokenRoot;
+    tokenizer->specialTokenMap.reserve(specialTokenSize);
+    tokenizer->specialTokenIds.reserve(specialTokenSize);
+    tokenizer->specialTokenRoot = new TrieNode();
+
+    // read special token entries
+    for (uint32_t i = 0; i < specialTokenSize; i++) {
+        uint32_t tokenLen;
+        in.read(reinterpret_cast<char*>(&tokenLen), sizeof(uint32_t));
+        std::string token(tokenLen, '\0');
+        in.read(token.data(), tokenLen);
+
+        int id;
+        in.read(reinterpret_cast<char*>(&id), sizeof(int));
+
+        tokenizer->specialTokenMap.emplace(token, id);
+        tokenizer->specialTokenIds.insert(id);
+
+        std::vector<int> tokenBytes;
+        for (unsigned char c : token) {
+            tokenBytes.push_back(static_cast<int>(c));
+        }
+
+        TrieNode* node = tokenizer->specialTokenRoot;
+        for (int b : tokenBytes) {
+            if (node->children.find(b) == node->children.end()) {
+                node->children[b] = new TrieNode();
+            }
+            node = node->children[b];
+        }
+        node->tokenId = id;
+    }
+
+    // read merges size
+    uint32_t mergesSize;
+    in.read(reinterpret_cast<char*>(&mergesSize), sizeof(uint32_t));
+    tokenizer->merges.reserve(mergesSize);
+
+    // read merges
+    for (uint32_t i = 0; i < mergesSize; i++) {
+        uint32_t mergeLen;
+        in.read(reinterpret_cast<char*>(&mergeLen), sizeof(uint32_t));
+        std::vector<int> merge(mergeLen);
+        in.read(reinterpret_cast<char*>(merge.data()), mergeLen * sizeof(int));
+        tokenizer->merges.push_back(merge);
+    }
+
+    in.close();
+    return tokenizer;
 }
 
 std::pair<int, int> BlBPETokenizer::getStats(const std::vector<std::vector<int>>& tokens) const {

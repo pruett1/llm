@@ -6,6 +6,8 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
+#include <fstream>
+#include <iostream>
 
 // hash function for vector<int> to be used in unordered_map
 // went with xor folding bc vectors are in general short (most length 1-2, special tokens will be longer but rare and still likely short)
@@ -48,6 +50,10 @@ class BlBPETokenizer {
         int getVocabSize();
 
         void train(const std::vector<std::string>& texts);
+
+        void save(const std::string& path) const;
+
+        static std::shared_ptr<BlBPETokenizer> load(const std::string& path);
 
         std::vector<int> encode(std::string text);
 
