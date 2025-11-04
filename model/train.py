@@ -111,12 +111,13 @@ def train_model(model: Transformer, token_data: list[int], tokenizer: BlBPEToken
     start_epoch = 0
     if resume and os.path.exists('checkpoints/train_interrupt.pt'):
         model, start_epoch = Transformer.load('checkpoints/train_interrupt.pt', device, optimizer=optimizer, scheduler=scheduler)
+        tokenizer = BlBPETokenizer.load('checkpoints/tokenizer.bin')
         print(f"Resuming training from epoch {start_epoch}")
     current_epoch = start_epoch
 
     model.train()
     try:
-        for epoch in tqdm(range(start_epoch, epochs), desc="Training Epochs: ", leave=False):
+        for epoch in tqdm(range(start_epoch, epochs), desc="Training Epochs: ", leave=False, total=epochs, initial=start_epoch):
             start = time.time()
             total_loss = 0.0
             current_epoch = epoch
@@ -146,4 +147,6 @@ def train_model(model: Transformer, token_data: list[int], tokenizer: BlBPEToken
     except KeyboardInterrupt:
         print("Training interrupted. Saving model...")
         model.save('checkpoints/train_interrupt.pt', optimizer=optimizer, scheduler=scheduler, epoch=epoch, rng_state=True)
-        print("Model saved. Exiting training loop.")
+        print("Saving tokenizer...")
+        tokenizer.save('checkpoints/tokenizer.bin')
+        print(f"Model and tokenizer saved at epoch: {epoch}\n Exiting training loop")
