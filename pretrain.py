@@ -32,7 +32,6 @@ def encode_texts_to_token_data(in_path: str, out_path: str, tokenizer: BlBPEToke
     start = time.time()
     vocab_ids = set(range(tokenizer.get_vocab_size()))
     max_len = total_len = count = 0
-    split_tokens = 0
     with open(in_path, 'r', encoding='utf-8') as input_file, open(out_path, 'w', encoding='utf-8') as output_file:
         for line in input_file:
             line = line.strip()
@@ -45,13 +44,11 @@ def encode_texts_to_token_data(in_path: str, out_path: str, tokenizer: BlBPEToke
                 max_len = L
             total_len += L
             count += 1
-            split_tokens += sum(1 for tok in token_ids if tok not in vocab_ids)
 
             output_file.write(' '.join(map(str, token_ids)) + '\n')
     
     end = time.time()
     print(f"Encoded {count} texts in {end - start:.2f} sec to '{out_path}'. Max length: {max_len}, Average length: {total_len / count:.2f}")
-    print(f"Coverage: {1 - total_len / split_tokens:.4f}")
     
 def main():
     device = torch.device("mps" if torch.mps.is_available() else "cpu")
