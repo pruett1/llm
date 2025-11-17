@@ -10,6 +10,8 @@ Using PyTorch to build an LLM
 - Add and Norm Layer
 
 ## Training
-Hoping to train on data that was scraped from leetcode using https://github.com/pruett1/leetcode-solution-scraper
+Using https://www.kaggle.com/datasets/veeralakrishna/150k-python-dataset/data for pretraining
 
-However, this might not be enough data and if so I will try to find publicly available free training set to use
+Hoped to train on data that was scraped from leetcode using https://github.com/pruett1/leetcode-solution-scraper
+
+This dataset proved to be too small so switched to using https://github.com/google-research/google-research/blob/master/mbpp/mbpp.jsonl, which was released as part of Austin et al. (2021), _Program synthesis with large language models_, arXiv:2108.07732
