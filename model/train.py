@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
+from torch.utils.data import Dataset
 
 from components.tokenizer_cpp import BlBPETokenizer
 from model.transformer import Transformer
@@ -12,7 +13,7 @@ import os
 from tqdm import tqdm
 
 def masked_lm_loss(logits: torch.Tensor, labels: torch.Tensor, output_token_id: int, pad_id: int) -> torch.Tensor:
-    mask = (labels == output_token_id).cumsum(dim=1) > 0
+    mask = (labels == output_token_id).cumsum(dim=1) >= 1
     mask = mask & (labels != pad_id)
 
     logits = logits.reshape(-1, logits.size(-1))
@@ -95,7 +96,7 @@ class WarmupLR(torch.optim.lr_scheduler._LRScheduler):
         lr = (self.d_model ** -0.5) * min((self._step_count ** -0.5), (self._step_count * (self.warmup_steps ** -1.5)))
         return [lr for _ in self.optimizer.param_groups]
 
-def train_model(model: Transformer, token_data: list[int], tokenizer: BlBPETokenizer, epochs: int = 10000, lr: float = 1e-4, batch_size: int = 32, seq_len: int = 128, resume: bool = False):
+def train_model(model: Transformer, token_data: Dataset, tokenizer: BlBPETokenizer, epochs: int = 10000, lr: float = 1e-4, warmup_steps: int = 4000, batch_size: int = 32, seq_len: int = 128, resume: bool = False):
     device = torch.device('mps' if torch.mps.is_available() else 'cpu')
     print(f"Training on device: {device}")
     model.to(device)
@@ -105,8 +106,8 @@ def train_model(model: Transformer, token_data: list[int], tokenizer: BlBPEToken
         return current_epoch
 
     dataloader = DataLoader(token_data, batch_size=batch_size, shuffle=True, collate_fn=collate_fn_factory(tokenizer, seq_len, epochs, get_current_epoch))
-    optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
-    scheduler = WarmupLR(optimizer, warmup_steps=4000, d_model=model.token_embedding.weight.size(1))
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, betas=(0.9, 0.98), eps=1e-9, weight_decay=0.01)
+    scheduler = WarmupLR(optimizer, warmup_steps=warmup_steps, d_model=model.token_embedding.weight.size(1))
 
     start_epoch = 0
     if resume and os.path.exists('checkpoints/train_interrupt.pt'):
@@ -121,15 +122,17 @@ def train_model(model: Transformer, token_data: list[int], tokenizer: BlBPEToken
             start = time.time()
             total_loss = 0.0
             current_epoch = epoch
+            t_processed = 0
 
             for batch in dataloader:
                 inputs, labels = batch
+                inputs = inputs.to(device)
+                t_processed += inputs.numel()
+                labels = labels.to(device)
 
                 optimizer.zero_grad()
                 logits = model.forward(inputs, use_cache=False)
 
-                logits.to(device)
-                labels = labels.to(device)
                 loss = masked_lm_loss(logits, labels, tokenizer.get_special_token_id("<|OUTPUT|>"), tokenizer.get_special_token_id("<|PAD|>"))
                 loss.backward()
 
@@ -140,10 +143,17 @@ def train_model(model: Transformer, token_data: list[int], tokenizer: BlBPEToken
             avg_loss = total_loss / len(dataloader)
             end = time.time()
             if (epoch + 1) % 100 == 0 or epoch == 0:
-                tqdm.write(f"Epoch {epoch + 1}/{epochs}, Loss: {avg_loss:.4f}, Time: {end - start:.2f}s")
+                current_lr = scheduler.get_last_lr()[0]
+                tqdm.write(f"Epoch {epoch + 1}/{epochs} | Loss: {avg_loss:.4f} | LR: {current_lr:.2e} | {t_processed * len(dataloader)/(end-start):.2f} tok/s")
             
-            if epoch / epochs in [0.25, 0.5, 0.75, 1.0]:
-                model.save(f'checkpoints/model_epoch_{epoch + 1}.pt')
+            if (epoch + 1) % (epochs // 4) == 0:
+                model.save(f'checkpoints/model_epoch_{epoch+1}.pt', optimizer=optimizer, scheduler=scheduler, epoch=epoch, rng_state=True)
+            
+            if epoch % (epochs * 0.05) == 0 and epoch != 0:
+                model.save('checkpoints/train_interrupt.pt', optimizer=optimizer, scheduler=scheduler, epoch=epoch, rng_state=True)
+                tokenizer.save('checkpoints/tokenizer.bin')
+                # tqdm.write("Model and tokenizer saved in case of interruptions")
+
     except KeyboardInterrupt:
         print("Training interrupted. Saving model...")
         model.save('checkpoints/train_interrupt.pt', optimizer=optimizer, scheduler=scheduler, epoch=epoch, rng_state=True)
