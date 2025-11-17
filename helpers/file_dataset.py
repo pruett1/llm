@@ -9,7 +9,7 @@ class StreamingFileDataset(Dataset):
 
         self.offsets = []
 
-        with open(self.path, 'r', encoding='utf-8') as f:
+        with open(self.path, 'rb') as f:
             offset = 0
             for line in f:
                 if self.sample_frac < 1.0 and self.sample_frac > random.random():
@@ -18,14 +18,21 @@ class StreamingFileDataset(Dataset):
                 self.offsets.append(offset)
                 offset += len(line)
             
+        self._file = None
     
     def __len__(self):
         return len(self.offsets)
     
-    def __get_item__(self, idx: int):
+    def __getitem__(self, idx: int):
+        if self._file is None:
+            self._file = open(self.path, 'rb')
+
         offset = self.offsets[idx]
-        with open(self.path, 'r', encoding='utf-8') as f:
-            f.seek(offset)
-            line = f.readline().strip()
-            tokens = [int(tok) for tok in line.split()]
+        self._file.seek(offset)
+        line = self._file.readline().decode('utf-8').strip()
+        tokens = [int(tok) for tok in line.split()]
         return torch.tensor(tokens, dtype=torch.long)
+    
+    def __del__(self):
+        if self._file is not None:
+            self._file.close()
