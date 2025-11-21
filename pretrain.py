@@ -1,5 +1,5 @@
 from helpers.json_to_s_exp import json_to_s_exp
-from helpers.file_dataset import StreamingFileDataset
+from helpers.datasets import TokenDataset
 from helpers.text_handler import jsonl_to_texts, csv_to_texts
 from components.tokenizer_cpp import BlBPETokenizer
 
@@ -87,7 +87,7 @@ def main():
                         n_layers = 8,
                         ff_mult = 4)
     
-    token_data = StreamingFileDataset('corpuses/pretrain_token_data.txt', sample_frac = 0.1)
+    token_data = TokenDataset('corpuses/pretrain_token_data.txt')
     print(len(token_data), "samples in token dataset")
     
     EPOCHS = 1000

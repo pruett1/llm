@@ -53,7 +53,7 @@ def collate_fn_factory(tokenizer: BlBPETokenizer, seq_len: int, total_epochs: in
         labels = []
 
         for tokens in batch:
-            t = torch.tensor(tokens, dtype=torch.long)
+            t = tokens.long()
 
             # Get special token idxs
             d_start = find_first(t, desc_id)
