@@ -12,6 +12,8 @@ Using PyTorch to build an LLM
 ## Training
 Using https://www.kaggle.com/datasets/veeralakrishna/150k-python-dataset/data for pretraining
 
+For fine tuning on python syntax I will be using the output tab of https://www.kaggle.com/datasets/thedevastator/python-code-instruction-dataset
+
 Hoped to train on data that was scraped from leetcode using https://github.com/pruett1/leetcode-solution-scraper
 
 This dataset proved to be too small so switched to using https://github.com/google-research/google-research/blob/master/mbpp/mbpp.jsonl, which was released as part of Austin et al. (2021), _Program synthesis with large language models_, arXiv:2108.07732
