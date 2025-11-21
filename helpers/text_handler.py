@@ -1,4 +1,6 @@
 import json
+import csv
+from typing import Optional
 
 def jsonl_to_texts(filepath: str) -> list[str]:
     result = []
@@ -30,3 +32,18 @@ def jsonl_to_texts(filepath: str) -> list[str]:
                             line += f"<|OUTPUT|>{val}"
                 result.append(line)
     return result
+
+def csv_to_texts(filepath: str, section: Optional[str]) -> list[str]:
+    data = []
+    if filepath.endswith('.csv') is False:
+        raise ValueError("Filepath must point to a .csv file")
+    
+    with open(filepath, 'r', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            if section:
+                data.append(row[section])
+            else:
+                data.append(str(row))
+
+    return data
