@@ -1,7 +1,11 @@
 import json
 import time
+import os
 
-def json_to_s_exp(json_file_path: str, output_file_path: str, limit: int = -1):
+def json_to_s_exp(json_file_path: str, output_file_path: str, limit: int = -1, skip_if_exists: bool = True):
+    if os.path.exists(output_file_path) and skip_if_exists:
+        print(f"File {output_file_path} already exists, passing...")
+        return
     start = time.time()
     def ast_to_s_exp(ast_list):
         def traverse(node):

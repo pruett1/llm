@@ -11,7 +11,7 @@ from math import ceil
 import time
 import random
 import gc
-import kagglehub
+import os
 
 def train_random_sample_texts(m_path: str, alt_texts: list[str], tokenizer: BlBPETokenizer, p: float = 0.01) -> None:
     print(f"Training tokenizer with random {p * 100}% sample of data...")
@@ -44,7 +44,11 @@ def train_random_sample_texts(m_path: str, alt_texts: list[str], tokenizer: BlBP
     end = time.time()
     print(f"Tokenizer trained with vocab size of {tokenizer.get_vocab_size()} on texts of length {sample_len} in {end - start:.2f} sec")
 
-def encode_texts_to_token_data(in_path: str, out_path: str, tokenizer: BlBPETokenizer):
+def encode_texts_to_token_data(in_path: str, out_path: str, tokenizer: BlBPETokenizer, skip_if_exists: bool = True):
+    if os.path.exists(out_path) and skip_if_exists:
+        print("Output file already exists, passing...")
+        return
+
     start = time.time()
     vocab_ids = set(range(tokenizer.get_vocab_size()))
     max_len = total_len = count = 0
@@ -71,7 +75,7 @@ def main():
     print(f"Using device: {device}")
 
     # conver json ASTs to s-expressions
-    json_to_s_exp('corpuses/python100k_train.json', 'corpuses/pretrain_s_exp.txt', limit=1000)
+    json_to_s_exp('corpuses/python100k_train.json', 'corpuses/pretrain_s_exp.txt', limit=-1)
 
     tokenizer = BlBPETokenizer(vocab_size=10000, special_tokens=["<|OUTPUT|>", "<|PAD|>", "<|DESC|>", "<|EXAMPLES|>", "<|CONSTRAINTS|>"])
     
