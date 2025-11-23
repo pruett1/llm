@@ -11,6 +11,7 @@ PYBIND11_MODULE(tokenizer_cpp, m) {
         .def("encode", &BlBPETokenizer::encode, py::arg("text"))
         .def("decode", &BlBPETokenizer::decode, py::arg("tokens"))
         .def("get_vocab_size", &BlBPETokenizer::getVocabSize)
+        .def("curr_vocab_size", &BlBPETokenizer::currVocabSize)
         .def("get_special_token_id", &BlBPETokenizer::getSpecialTokenId, py::arg("token"))
         .def("save", &BlBPETokenizer::save, py::arg("path"))
         .def_static("load", &BlBPETokenizer::load, py::return_value_policy::take_ownership, py::arg("path"));

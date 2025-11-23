@@ -57,6 +57,10 @@ int BlBPETokenizer::getVocabSize() {
     return vocabSize;
 }
 
+int BlBPETokenizer::currVocabSize() {
+    return vocab.size();
+}
+
 void BlBPETokenizer::save(const std::string& path) const {
     // save tokenizer state to binary file
     std::ofstream out(path, std::ios::binary);
