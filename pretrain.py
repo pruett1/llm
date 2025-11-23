@@ -77,12 +77,16 @@ def main():
     # conver json ASTs to s-expressions
     json_to_s_exp('corpuses/python100k_train.json', 'corpuses/pretrain_s_exp.txt', limit=-1)
 
-    tokenizer = BlBPETokenizer(vocab_size=10000, special_tokens=["<|OUTPUT|>", "<|PAD|>", "<|DESC|>", "<|EXAMPLES|>", "<|CONSTRAINTS|>"])
-    
-    train_random_sample_texts('corpuses/pretrain_s_exp.txt', ["corpuses/mbpp.jsonl", "corpuses/python_code_instruction.csv"], tokenizer, p=0.05)
+    tokenizer = None
 
-    encode_texts_to_token_data('corpuses/pretrain_s_exp.txt', 'corpuses/pretrain_token_data.txt', tokenizer)
-    
+    if os.path.exists('checkpoint/tokenizer.bin'):
+        tokenizer = BlBPETokenizer.load('checkpoint/tokenizer.bin') 
+    else:
+        tokenizer = BlBPETokenizer(vocab_size=10000, special_tokens=["<|OUTPUT|>", "<|PAD|>", "<|DESC|>", "<|EXAMPLES|>", "<|CONSTRAINTS|>"])
+
+    if tokenizer.curr_vocab_size() != tokenizer.get_vocab_szie():
+        train_random_sample_texts('corpuses/pretrain_s_exp.txt', ["corpuses/mbpp.jsonl", "corpuses/python_code_instruction.csv"], tokenizer, p=0.05)
+        encode_texts_to_token_data('corpuses/pretrain_s_exp.txt', 'corpuses/pretrain_token_data.txt', tokenizer)
 
     model = Transformer(vocab_size = tokenizer.get_vocab_size(),
                         d_model = 512,
