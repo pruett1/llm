@@ -39,6 +39,7 @@ class StreamingAttention(nn.Module):
     def forward(self, x: torch.Tensor, use_cache: bool) -> torch.Tensor:
         B, L, _ = x.size()
         all_heads = []
+        x_dtype = x.dtype
 
         # TODO: vectorize over heads
         for i in range(self.n_heads):
@@ -46,7 +47,7 @@ class StreamingAttention(nn.Module):
             k = self.k_proj[i](x)
             v = self.v_proj[i](x)
 
-            pos = torch.arange(self.cache_index, self.cache_index + L, device=x.device)
+            pos = torch.arange(self.cache_index, self.cache_index + L, device=x.device, dtype=x_dtype)
             q = self.rope.rot(q, pos)
             k = self.rope.rot(k, pos)
 
@@ -54,7 +55,7 @@ class StreamingAttention(nn.Module):
                 k = torch.cat([self.cache_k[i], k], dim = 1)
                 v = torch.cat([self.cache_v[i], v], dim = 1)
             
-            qkT = torch.matmul(q, k.transpose(-2, -1)) / math.sqrt(self.head_dim)
+            qkT = torch.matmul(q, k.transpose(-2, -1)) / torch.sqrt(torch.tensor(self.head_dim, dtype=q.dtype, device=q.device))
 
             smax = torch.softmax(qkT, dim = -1)
             smax = self.attn_dropout(smax)
@@ -65,8 +66,8 @@ class StreamingAttention(nn.Module):
             if use_cache:
                 self.cache_k = self.cache_k if self.cache_k is not None else [None] * self.n_heads
                 self.cache_v = self.cache_v if self.cache_v is not None else [None] * self.n_heads
-                self.cache_k[i] = k.detach()
-                self.cache_v[i] = v.detach()
+                self.cache_k[i] = k.detach().to(x_dtype)
+                self.cache_v[i] = v.detach().to(x_dtype)
 
         if use_cache:
             self.cache_index += L

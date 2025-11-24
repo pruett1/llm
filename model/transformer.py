@@ -30,7 +30,10 @@ class Transformer(nn.Module):
         for layer in self.layers:
             x = layer(x, use_cache)
         x = self.norm(x)
-        return self.lm_head(x)
+
+        with torch.autocast(device_type=x.device.type, enabled = torch.is_autocast_enabled()):
+            x = self.lm_head(x)
+        return x
     
     @torch.no_grad()
     def generate(self, input_ids: torch.Tensor, max_length: int) -> torch.Tensor:
