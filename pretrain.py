@@ -77,12 +77,18 @@ def main():
     # conver json ASTs to s-expressions
     json_to_s_exp('corpuses/python100k_train.json', 'corpuses/pretrain_s_exp.txt', limit=-1)
 
-    tokenizer = BlBPETokenizer(vocab_size=10000, special_tokens=["<|OUTPUT|>", "<|PAD|>", "<|DESC|>", "<|EXAMPLES|>", "<|CONSTRAINTS|>"])
-    
-    train_random_sample_texts('corpuses/pretrain_s_exp.txt', ["corpuses/mbpp.jsonl", "corpuses/python_code_instruction.csv"], tokenizer, p=0.05)
+    tokenizer = None
 
-    encode_texts_to_token_data('corpuses/pretrain_s_exp.txt', 'corpuses/pretrain_token_data.txt', tokenizer)
-    
+    if os.path.exists('checkpoints/tokenizer.bin'):
+        print("loading tokenizer...")
+        tokenizer = BlBPETokenizer.load('checkpoints/tokenizer.bin') 
+        # print(tokenizer.curr_vocab_size())
+    else:
+        tokenizer = BlBPETokenizer(vocab_size=10000, special_tokens=["<|OUTPUT|>", "<|PAD|>", "<|DESC|>", "<|EXAMPLES|>", "<|CONSTRAINTS|>"])
+
+    if tokenizer.curr_vocab_size() != tokenizer.get_vocab_size():
+        train_random_sample_texts('corpuses/pretrain_s_exp.txt', ["corpuses/mbpp.jsonl", "corpuses/python_code_instruction.csv"], tokenizer, p=0.05)
+        encode_texts_to_token_data('corpuses/pretrain_s_exp.txt', 'corpuses/pretrain_token_data.txt', tokenizer)
 
     model = Transformer(vocab_size = tokenizer.get_vocab_size(),
                         d_model = 512,
@@ -102,8 +108,8 @@ def main():
     WARMUP_STEPS = steps_per_epoch * (EPOCHS * 0.05) # 5% of total epochs for warmup
     LR = peak_lr * (512 ** -0.5)
 
-    train_model(model, token_data, tokenizer, epochs=EPOCHS, lr=LR, warmup_steps=WARMUP_STEPS, batch_size=BATCH_SIZE, resume=False)
-    model.save('checkpoints/pretrain.pt')
+    train_model(model, token_data, tokenizer, epochs=EPOCHS, lr=LR, warmup_steps=WARMUP_STEPS, batch_size=BATCH_SIZE, resume=True)
+    model.save('models/pretrain.pt')
 
 if __name__ == "__main__":
     main()
