@@ -13,24 +13,23 @@ import os
 from tqdm import tqdm
 
 def masked_lm_loss(logits: torch.Tensor, labels: torch.Tensor, output_token_id: int, pad_id: int) -> torch.Tensor:
-    B, L, V = logits.size()
+    has_output = (labels == output_token_id).any(dim=1)
 
-    output_idx = (labels == output_token_id).int().argmax(dim=1)
-    # has_output = (labels == output_token_id).any(dim=1)
+    mask = (labels == output_token_id).cumsum(dim=1) >= 1
+    mask = mask & (labels != pad_id)
 
-    mask = torch.arange(L, device=labels.device).unsqueeze(0) >= output_idx.unsqueeze(1)
-    mask &= (labels != pad_id)
+    pad_only_mask = (labels != pad_id)
 
-    logits = logits.reshape(-1, V)
+    mask = torch.where(has_output[:, None], mask, pad_only_mask)
+
+    logits = logits.reshape(-1, logits.size(-1))
     labels = labels.reshape(-1)
-    mask = mask.reshape(-1)
+    mask = mask.reshape(-1).float()
 
-    mask = mask.bool()
-    logits = logits[mask]
-    labels = labels[mask]
+    token_loss = nn.functional.cross_entropy(logits, labels, reduction='none')
+    masked_loss = token_loss * mask
 
-    loss = nn.functional.cross_entropy(logits, labels, reduction='mean')
-    return loss # Avoid division by zero, shouldnt happen but just in case
+    return masked_loss.sum() / (mask.sum() + 1e-8) # Avoid division by zero, shouldnt happen but just in case
 
 class Collator:
     def __init__(self, tokenizer: BlBPETokenizer, seq_len: int, total_epochs: int, get_current_epoch: int):
@@ -147,7 +146,7 @@ def train_model(model: Transformer, token_data: Dataset, tokenizer: BlBPETokeniz
     # Enable mid point resume
     start_epoch = 0
     if resume and os.path.exists('checkpoints/train_interrupt.pt'):
-        model, start_epoch = Transformer.load('checkpoints/tokenizer.pt', device, optimizer=optimizer, scheduler=scheduler)
+        model, start_epoch = Transformer.load('checkpoints/train_interrupt.pt', device, optimizer=optimizer, scheduler=scheduler)
         tokenizer = BlBPETokenizer.load('checkpoints/tokenizer.bin')
         print(f"Resuming training from epoch {start_epoch}")
     current_epoch = start_epoch
