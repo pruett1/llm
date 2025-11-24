@@ -79,6 +79,7 @@ def main():
 
     tokenizer = None
 
+
     if os.path.exists('checkpoints/tokenizer.bin'):
         print("loading tokenizer...")
         tokenizer = BlBPETokenizer.load('checkpoints/tokenizer.bin') 
@@ -87,6 +88,7 @@ def main():
         tokenizer = BlBPETokenizer(vocab_size=10000, special_tokens=["<|OUTPUT|>", "<|PAD|>", "<|DESC|>", "<|EXAMPLES|>", "<|CONSTRAINTS|>"])
 
     if tokenizer.curr_vocab_size() != tokenizer.get_vocab_size():
+
         train_random_sample_texts('corpuses/pretrain_s_exp.txt', ["corpuses/mbpp.jsonl", "corpuses/python_code_instruction.csv"], tokenizer, p=0.05)
         encode_texts_to_token_data('corpuses/pretrain_s_exp.txt', 'corpuses/pretrain_token_data.txt', tokenizer)
 

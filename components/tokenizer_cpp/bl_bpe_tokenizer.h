@@ -49,6 +49,8 @@ class BlBPETokenizer {
 
         int getVocabSize();
 
+        int currVocabSize();
+
         void train(const std::vector<std::string>& texts);
 
         void save(const std::string& path) const;
