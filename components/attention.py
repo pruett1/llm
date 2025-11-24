@@ -12,9 +12,7 @@ class StreamingAttention(nn.Module):
         self.n_heads = n_heads
         self.head_dim = d_model // n_heads
 
-        self.q_proj = nn.ModuleList([nn.Linear(d_model, self.head_dim) for _ in range(n_heads)])
-        self.k_proj = nn.ModuleList([nn.Linear(d_model, self.head_dim) for _ in range(n_heads)])
-        self.v_proj = nn.ModuleList([nn.Linear(d_model, self.head_dim) for _ in range(n_heads)])
+        self.qkv_proj = nn.Linear(d_model, 3 * d_model)
         self.o_proj = nn.Linear(d_model, d_model)
 
         self.rope = RoPositionalEmbedding(max_seq_len, self.head_dim)
@@ -22,14 +20,9 @@ class StreamingAttention(nn.Module):
         self.attn_dropout = nn.Dropout(attn_dropout)
         self.proj_dropout = nn.Dropout(proj_dropout)
 
-        # TODO: this can be uncommented when forward is vectorized over heads
-        # self.register_buffer("cache_k", None)
-        # self.register_buffer("cache_v", None)
-        # self.register_buffer("cache_index", torch.tensor(0, dtype=torch.long))
-
-        self.cache_k = None
-        self.cache_v = None
-        self.cache_index = 0
+        self.register_buffer("cache_k", None)
+        self.register_buffer("cache_v", None)
+        self.register_buffer("cache_index", torch.tensor(0, dtype=torch.long))
 
     def reset_cache(self):
         self.cache_k = None
@@ -38,41 +31,42 @@ class StreamingAttention(nn.Module):
 
     def forward(self, x: torch.Tensor, use_cache: bool) -> torch.Tensor:
         B, L, _ = x.size()
-        all_heads = []
-        x_dtype = x.dtype
 
-        # TODO: vectorize over heads
-        for i in range(self.n_heads):
-            q = self.q_proj[i](x)
-            k = self.k_proj[i](x)
-            v = self.v_proj[i](x)
+        qkv = self.qkv_proj(x)
+        q, k, v = qkv.split(self.d_model, dim=-1) # B, L, D
 
-            pos = torch.arange(self.cache_index, self.cache_index + L, device=x.device, dtype=x_dtype)
-            q = self.rope.rot(q, pos)
-            k = self.rope.rot(k, pos)
+        # reshape to be heads -> B, L, N_h, D_h
+        q = q.view(B, L, self.n_heads, self.head_dim)
+        k = k.view(B, L, self.n_heads, self.head_dim)
+        v = v.view(B, L, self.n_heads, self.head_dim)
 
-            if use_cache and self.cache_k is not None and self.cache_k[i] is not None:
-                k = torch.cat([self.cache_k[i], k], dim = 1)
-                v = torch.cat([self.cache_v[i], v], dim = 1)
-            
-            qkT = torch.matmul(q, k.transpose(-2, -1)) / torch.sqrt(torch.tensor(self.head_dim, dtype=q.dtype, device=q.device))
+        pos = torch.arange(self.cache_index.item(), self.cache_index.item() + L, device=x.device)
+        q = self.rope.rot(q, pos)
+        k = self.rope.rot(k, pos)
 
-            smax = torch.softmax(qkT, dim = -1)
-            smax = self.attn_dropout(smax)
-
-            attn = torch.matmul(smax, v)
-            all_heads.append(attn)
-
-            if use_cache:
-                self.cache_k = self.cache_k if self.cache_k is not None else [None] * self.n_heads
-                self.cache_v = self.cache_v if self.cache_v is not None else [None] * self.n_heads
-                self.cache_k[i] = k.detach().to(x_dtype)
-                self.cache_v[i] = v.detach().to(x_dtype)
+        # if cache cat over layers
+        if use_cache and self.cache_k is not None:
+            k = torch.cat([self.cache_k, k], dim=1)
+            v = torch.cat([self.cache_v, v], dim=1)
 
         if use_cache:
-            self.cache_index += L
+            self.cache_k = k.detach()
+            self.cache_v = v.detach()
+            self.cache_index = self.cache_index + L
 
-        out = torch.cat(all_heads, dim = -1)
+        # reshape so N_h is a batch dim for mat mul
+        q = q.transpose(1, 2)
+        k = k.transpose(1, 2)
+        v = v.transpose(1, 2)
+
+        qkT = torch.matmul(q, k.transpose(-1, -2)) / torch.sqrt(torch.tensor(self.head_dim, dtype=q.dtype, device=q.device))
+        smax = torch.softmax(qkT, dim = -1)
+        smax = self.attn_dropout(smax)
+
+        out = torch.matmul(smax, v) #B, H, L, D
+        out = out.transpose(1, 2) #B, L, H, D
+
+        out = out.reshape(B, L, self.d_model) #reshape to B, L, d_model
         out = self.o_proj(out)
         out = self.proj_dropout(out)
 

@@ -36,13 +36,29 @@ class Transformer(nn.Module):
         return x
     
     @torch.no_grad()
-    def generate(self, input_ids: torch.Tensor, max_length: int) -> torch.Tensor:
+    def generate(self, input_ids: torch.Tensor, max_length: int, top_p: float = 0.9, temp: float = 1.0) -> torch.Tensor:
         self.reset_cache()
 
         for _ in range(max_length):
-            logits = self.forward(input_ids, use_cache = True)
-            next_token = torch.argmax(logits[:, -1, :], dim = -1, keepdim = True) #TODO: add top-p sampling w/ temperature instead of greedy
-            input_ids = torch.cat((input_ids, next_token), dim = 1)
+            logits = self.forward(input_ids, use_cache = True) # 1 x L x V
+            next_logits = logits[:, -1, :] / temp
+
+            sorted_logits, sorted_inds = torch.sort(next_logits, descending = True, dim = -1)
+            probs = torch.softmax(sorted_logits, dim = -1)
+
+            cum_probs = torch.cumsum(probs, dim=-1) 
+            mask = cum_probs > top_p # if logits = [0.5, 0.3, 0.1, 0.05, 0.05] -> cum_probs = [0.5, 0.8, 0.9, 0.95, 1] -> inds_to_mask = [0, 0, 0, 1, 1] if top_p = 0.9
+
+            mask[..., 1:] = mask[..., :-1] # handle case where boundary token cum_prob is > top_p (cum_probs = [0.5, 0.95, 0.98, 0.99], mask was [0, 1, 1, 1] -> [0, 0, 1, 1])
+            mask[..., 0] = False # ensure always at least the most probable logit is kept
+            probs[mask] = 0.0 # zero out logits not in top_p
+
+            probs = probs / probs.sum(dim=-1, keepdim=True) # re normalize
+
+            next_token = torch.multinomial(probs, 1)
+            next_token = sorted_inds.gather(dim=-1, index = next_token).to(input_ids.device) # map back to original ind which corresponds with the token id
+
+            input_ids = torch.cat([input_ids, next_token], dim=1)
         
         return input_ids
     
