@@ -17,3 +17,8 @@ For fine tuning on python syntax I will be using the output tab of https://www.k
 Hoped to train on data that was scraped from leetcode using https://github.com/pruett1/leetcode-solution-scraper
 
 This dataset proved to be too small so switched to using https://github.com/google-research/google-research/blob/master/mbpp/mbpp.jsonl, which was released as part of Austin et al. (2021), _Program synthesis with large language models_, arXiv:2108.07732
+
+### Mixed-Precision Training
+Grad scaling is not fully implemented yet for MPS. 
+
+Needed to add work around following https://discuss.pytorch.org/t/gradscaler-typeerror-cannot-convert-a-mps-tensor-to-float64-dtype-as-the-mps-framework-doesnt-support-float64-please-use-float32-instead/213206/2

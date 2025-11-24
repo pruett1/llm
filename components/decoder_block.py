@@ -24,11 +24,12 @@ class DecoderBlock(nn.Module):
     # using pre-norm structure
     def forward(self, x: torch.Tensor, use_cache: bool) -> torch.Tensor:
         x = self.attn_norm(x)
+        dtype = x.dtype
         attn_out = self.attn(x, use_cache)
-        x = x + self.dropout(attn_out)
+        x = x + self.dropout(attn_out.to(dtype))
 
         x = self.ff_norm(x)
         ff_out = self.ff(x)
-        x = x + self.dropout(ff_out)
+        x = x + self.dropout(ff_out.to(dtype))
 
         return x

@@ -19,3 +19,4 @@ __pycache__/
 #project dir
 /corpuses/
 /checkpoints/
+/models/

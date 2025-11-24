@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-import math
 
 # based on RoFormer, Su et al. 2023
 class RoPositionalEmbedding(nn.Module):
@@ -23,8 +22,8 @@ class RoPositionalEmbedding(nn.Module):
 
     def rot(self, x: torch.Tensor, positions: torch.Tensor) -> torch.Tensor:
         "x: B x L x H X D, positions: L, "
-        cos = self.cos[positions].unsqueeze(0).unsqueeze(2) # 1 x L x 1 x D
-        sin = self.sin[positions].unsqueeze(0).unsqueeze(2) # 1 x L x 1 x D
+        cos = self.cos[positions].unsqueeze(0).unsqueeze(2).to(x.dtype) # 1 x L x 1 x D
+        sin = self.sin[positions].unsqueeze(0).unsqueeze(2).to(x.dtype) # 1 x L x 1 x D
 
         x1 = x[..., ::2] # B x L x D/2
         x2 = x[..., 1::2] # B x L x D/2

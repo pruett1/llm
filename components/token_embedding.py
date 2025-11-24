@@ -11,4 +11,7 @@ class TokenEmbedding(nn.Module):
 
     def forward(self, tokens: torch.LongTensor) -> torch.Tensor:
         #tokens: (B, T) -> (B, T, d_model)
-        return self.weight[tokens]
+        x = self.weight[tokens]
+        if torch.is_autocast_enabled():
+            return x.to(torch.get_autocast_dtype())
+        return x
