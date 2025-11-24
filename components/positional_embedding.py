@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-import math
 
 # based on RoFormer, Su et al. 2023
 class RoPositionalEmbedding(nn.Module):

@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-import math
 from components.positional_embedding import RoPositionalEmbedding
 
 # modified self attention with rotary position embedding
