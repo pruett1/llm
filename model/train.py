@@ -132,8 +132,8 @@ def train_model(model: Transformer, token_data: Dataset, tokenizer: BlBPETokeniz
     model.to(device)
     model.train()
 
-    # initalize grad scaler
-    scaler = GradScaler(device=device.type, init_scale = 2.**16, growth_factor = 2.0, backoff_factor = 0.5)
+    # # initalize grad scaler
+    # scaler = GradScaler(device=device.type, init_scale = 2.**16, growth_factor = 2.0, backoff_factor = 0.5)
 
     current_epoch = 0
     # Set up dataloader with collator
@@ -177,10 +177,12 @@ def train_model(model: Transformer, token_data: Dataset, tokenizer: BlBPETokeniz
                 loss_val = loss.item() # before scaling for logging
 
                 #scaling
-                scaler.scale(loss).backward()
+                # scaler.scale(loss).backward()
 
-                scaler.step(optimizer)
-                scaler.update()
+                # scaler.step(optimizer)
+                # scaler.update()
+                loss.backward()
+                optimizer.step()
 
                 scheduler.step()
                 total_loss += loss_val
